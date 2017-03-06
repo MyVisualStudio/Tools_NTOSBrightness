@@ -228,11 +228,11 @@ DWORD GetBrightnessValue(POWER_TYPE powerType,DWORD* brightness)
 	return PowerApplySettingChanges(GUID_VIDEO_SUBGROUP, GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS);
 }
 CScreenBrightnessDlg* m_instance;
-DWORD  WINAPI BrightnessNotifyCallback(PVOID,PVOID,PVOID)
+DWORD  WINAPI BrightnessNotifyCallback(PVOID arg1,PVOID arg2,PVOID arg3)
 {
-	DWORD pos;
 	if (NotifyCallbackEnabled)
 	{
+    DWORD pos;
 	GetBrightnessValue(GetCurrentPowerType(),&pos);
 	m_instance->Trackbar_sb.SetPos(pos);
 	}
@@ -247,7 +247,7 @@ DWORD SetNotificationPort(BOOL  Enabled=TRUE)
 	{
 		result = PowerSettingRegisterNotification(
 		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS,
-		2u,
+		DEVICE_NOTIFY_CALLBACK,
 		&Recipient,
 		&RegistrationHandle);
 	}

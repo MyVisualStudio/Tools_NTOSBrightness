@@ -3,3 +3,12 @@
 ################################################################################
 
 /ScreenBrightness.VC.VC.opendb
+/ScreenBrightness/x64/Debug
+/x64/Debug
+/ScreenBrightness/Release
+/ScreenBrightness/Debug
+/ipch
+/Debug
+/BrightnessTest/Debug/BrightnessTest.tlog
+/BrightnessTest/Debug
+/BrightnessTest/Release
