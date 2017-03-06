@@ -1,70 +1,136 @@
-﻿================================================================================
-    MICROSOFT 基础类库 : ScreenBrightness 项目概述
-===============================================================================
+关键代码：
 
-应用程序向导已为您创建了此 ScreenBrightness 应用程序。此应用程序不仅演示 Microsoft 基础类的基本使用方法，还可作为您编写应用程序的起点。
+#include <PowrProf.h>
+#pragma comment(lib,"PowrProf.lib")
+enum POWER_TYPE
+{
+	POWER_TYPE_NULL,
+	AC_MODE,
+	DC_MODE
+};
+ DWORD WINAPI PowerApplySettingChanges(const GUID& settingsA, const GUID& settingsB)
+ {
+	 typedef DWORD( WINAPI *PowerApplySettingChangesProc)(const GUID& settingsA, const GUID& settingsB);
+	 PowerApplySettingChangesProc _p;
+	 _p = (PowerApplySettingChangesProc)GetProcAddress(GetModuleHandle(L"PowrProf.dll"), "PowerApplySettingChanges");
+	 return _p(settingsA,  settingsB);
+ }
+ POWER_TYPE GetCurrentPowerType()
+ {
+	 SYSTEM_POWER_STATUS pSysPower;
+	 if (GetSystemPowerStatus(&pSysPower))
+	 {
+		 return pSysPower.ACLineStatus == 1 ? AC_MODE : DC_MODE;
+	 }
+	 return POWER_TYPE_NULL;
+ }
+ BOOL NotifyCallbackEnabled = TRUE;
+DWORD SetBrightnessValue(POWER_TYPE powerType, DWORD brightness)
+{
+	GUID* SchemeGuid;
+	DWORD result = PowerGetActiveScheme(0, &SchemeGuid);
+	if (result != ERROR_SUCCESS) return result;
+	if (powerType == AC_MODE)
+	{
+		result = PowerWriteACValueIndex(0, SchemeGuid, &GUID_VIDEO_SUBGROUP, &GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, brightness);
+	}
+	else if (powerType == DC_MODE)
+	{
+		result = PowerWriteDCValueIndex(0, SchemeGuid, &GUID_VIDEO_SUBGROUP, &GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, brightness);
+	}
+	else
+	{
+		return ERROR_INVALID_VARIANT;
+	}
 
-本文件概要介绍组成 ScreenBrightness 应用程序的每个文件的内容。
+	if (result != ERROR_SUCCESS) return result;
+	return PowerApplySettingChanges(GUID_VIDEO_SUBGROUP, GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS);
+}
+DWORD GetBrightnessValue(POWER_TYPE powerType,DWORD* brightness)
+{
+	GUID* SchemeGuid;
+	DWORD result = PowerGetActiveScheme(0, &SchemeGuid);
+	if (result != ERROR_SUCCESS) return result;
+	if (powerType==AC_MODE)
+	{
+     result = PowerReadACValueIndex(0, SchemeGuid, &GUID_VIDEO_SUBGROUP, &GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, brightness);
+	}
+	else if(powerType == DC_MODE)
+	{
+    result = PowerReadDCValueIndex(0, SchemeGuid, &GUID_VIDEO_SUBGROUP, &GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, brightness);
+	}
+	else
+	{
+		return ERROR_INVALID_VARIANT;
+	}
+	
+	if (result != ERROR_SUCCESS) return result;
+	return PowerApplySettingChanges(GUID_VIDEO_SUBGROUP, GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS);
+}
+CScreenBrightnessDlg* m_instance;
+DWORD  WINAPI BrightnessNotifyCallback(PVOID,PVOID,PVOID)
+{
+	DWORD pos;
+	if (NotifyCallbackEnabled)
+	{
+	GetBrightnessValue(GetCurrentPowerType(),&pos);
+	m_instance->Trackbar_sb.SetPos(pos);
+	}
+	return 0;
+}
+HPOWERNOTIFY RegistrationHandle;
+DWORD SetNotificationPort(BOOL  Enabled=TRUE)
+{
+	HANDLE Recipient= BrightnessNotifyCallback;
+	DWORD result=-1;
+	if (Enabled)
+	{
+		result = PowerSettingRegisterNotification(
+		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS,
+		2u,
+		&Recipient,
+		&RegistrationHandle);
+	}
+	else
+	{
+		 result = PowerSettingUnregisterNotification(
+			RegistrationHandle);
+	}
+	return result;
+}
+DWORD lastData=-1;
 
-ScreenBrightness.vcxproj
-    这是使用应用程序向导生成的 VC++ 项目的主项目文件，其中包含生成该文件的 Visual C++ 的版本信息，以及有关使用应用程序向导选择的平台、配置和项目功能的信息。
+void CScreenBrightnessDlg::OnNMCustomdrawSlider1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	UpdateData(TRUE);
+	Trackbar_sb.SetRangeMax(100, 0);
+	if (lastData == Trackbar_sb.GetPos())
+	{
+		goto final_;
+	}
+	lastData = Trackbar_sb.GetPos();
+	NotifyCallbackEnabled = FALSE;
+	SetBrightnessValue(GetCurrentPowerType(),Trackbar_sb.GetPos());
+	NotifyCallbackEnabled = TRUE;
+	final_:
+	UpdateData(FALSE);
+	*pResult = 0;
+}
 
-ScreenBrightness.vcxproj.filters
-    这是使用“应用程序向导”生成的 VC++ 项目筛选器文件。它包含有关项目文件与筛选器之间的关联信息。在 IDE 中，通过这种关联，在特定节点下以分组形式显示具有相似扩展名的文件。例如，“.cpp”文件与“源文件”筛选器关联。
+int CScreenBrightnessDlg::OnCreate(LPCREATESTRUCT lpCreateStruct)
+{
+	if (CDialogEx::OnCreate(lpCreateStruct) == -1)
+		return -1;
+	/*
+	if (!EnumDisplaySettingsExW(0, 0xFFFFFFFF, &pDev, 6))
+	{
+	MessageBox(L"Error on EnumDisplaySettingsExW", L"Error", MB_ICONWARNING);
+	exit(0);
+	}*/
+	m_instance = this;
+	SetNotificationPort();
 
-ScreenBrightness.h
-    这是应用程序的主头文件。
-    其中包括其他项目特定的标头（包括 Resource.h），并声明 CScreenBrightnessApp 应用程序类。
+	// TODO:  在此添加您专用的创建代码
 
-ScreenBrightness.cpp
-    这是包含应用程序类 CScreenBrightnessApp 的主应用程序源文件。
-
-ScreenBrightness.rc
-    这是程序使用的所有 Microsoft Windows 资源的列表。它包括 RES 子目录中存储的图标、位图和光标。此文件可以直接在 Microsoft Visual C++ 中进行编辑。项目资源包含在 2052 中。
-
-res\ScreenBrightness.ico
-    这是用作应用程序图标的图标文件。此图标包括在主资源文件 ScreenBrightness.rc 中。
-
-res\ScreenBrightness.rc2
-    此文件包含不在 Microsoft Visual C++ 中进行编辑的资源。您应该将不可由资源编辑器编辑的所有资源放在此文件中。
-
-
-/////////////////////////////////////////////////////////////////////////////
-
-应用程序向导创建一个对话框类：
-
-ScreenBrightnessDlg.h、ScreenBrightnessDlg.cpp - 对话框
-    这些文件包含 CScreenBrightnessDlg 类。此类定义应用程序的主对话框的行为。对话框模板包含在 ScreenBrightness.rc 中，该文件可以在 Microsoft Visual C++ 中编辑。
-
-/////////////////////////////////////////////////////////////////////////////
-
-其他功能：
-
-ActiveX 控件
-    该应用程序包含对使用 ActiveX 控件的支持。
-
-打印和打印预览支持
-    应用程序向导通过从 MFC 库调用 CView 类中的成员函数生成代码，来处理打印、打印设置和打印预览命令。
-
-/////////////////////////////////////////////////////////////////////////////
-
-其他标准文件:
-
-StdAfx.h, StdAfx.cpp
-    这些文件用于生成名为 ScreenBrightness.pch 的预编译头 (PCH) 文件和名为 StdAfx.obj 的预编译类型文件。
-
-Resource.h
-    这是标准头文件，可用于定义新的资源 ID。Microsoft Visual C++ 将读取并更新此文件。
-
-ScreenBrightness.manifest
-	Windows XP 使用应用程序清单文件来描述特定版本的并行程序集的应用程序依赖项。加载程序使用这些信息来从程序集缓存中加载相应的程序集，并保护其不被应用程序访问。应用程序清单可能会包含在内，以作为与应用程序可执行文件安装在同一文件夹中的外部 .manifest 文件进行重新分发，它还可能以资源的形式包含在可执行文件中。
-/////////////////////////////////////////////////////////////////////////////
-
-其他注释:
-
-应用程序向导使用“TODO:”来指示应添加或自定义的源代码部分。
-
-如果应用程序使用共享 DLL 中的 MFC，您将需要重新分发 MFC DLL。如果应用程序所使用的语言与操作系统的区域设置不同，则还需要重新分发相应的本地化资源 mfc110XXX.DLL。
-有关上述话题的更多信息，请参见 MSDN 文档中有关重新分发 Visual C++ 应用程序的部分。
-
-/////////////////////////////////////////////////////////////////////////////
+	return 0;
+}
