@@ -7,4 +7,4 @@
 
 但是亮度Callback仍有问题，如果用写死的方法就没问题了（可能是强迫症）
 
-
+PS:BrightnessTest那个项目是17版本
