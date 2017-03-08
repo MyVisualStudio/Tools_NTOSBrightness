@@ -100,26 +100,13 @@ void CBrightnessNotify::SetNotifyProcedure(CNotifyProcedure pfn) {
 CNotifyProcedure CBrightnessNotify::GetNotifyProcedure() {
 	return lpfnNotifier;
 }
-/*
-DWORD WINAPI PureProcedureTemplate(PVOID,PVOID,PVOID) {
-	ULONG_PTR pContext = 666666;
-	CNotifyProcedure pDestination = (CNotifyProcedure)233333;
-	pDestination((PVOID)pContext);
-	return 0;
-}
-void ReplacePatternInTemplate(PVOID pfn, size_t dwLength, ULONG_PTR ulSrc, ULONG_PTR ulReplace) {
-	for (ULONG_PTR i = (ULONG_PTR)pfn; i < dwLength; i += sizeof(ULONG_PTR)) 
-		if ((*(ULONG_PTR*)i) == ulSrc) (*(ULONG_PTR*)i) = ulReplace;
-}
+
+#if defined(_M_X64) || defined(__x86_64__)
 PVOID CBrightnessNotify::GetProcedureForApply() {
-	size_t dwTotalLen = (size_t)ReplacePatternInTemplate - (size_t)PureProcedureTemplate;
-	PVOID pAllocatedCodeStore = VirtualAlloc(0, dwTotalLen, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-	memcpy(pAllocatedCodeStore, PureProcedureTemplate, dwTotalLen);
-	ReplacePatternInTemplate(pAllocatedCodeStore, dwTotalLen, 233333, (ULONG_PTR)lpfnNotifier);
-	ReplacePatternInTemplate(pAllocatedCodeStore, dwTotalLen, 666666, (ULONG_PTR)pAttachment);
-	return pAllocatedCodeStore;
+
 }
-*/
+#else
+//32Bit Details
 #pragma pack(push, 1)
 struct ASMInstruction {
 	UINT8 uInstruction;
@@ -131,11 +118,10 @@ PVOID CBrightnessNotify::GetProcedureForApply() {
 	ASM Code like this:
 	push    [Context]
 	mov     eax, [NotifyProcedure]
-	call    eax 
-	xor     eax, eax 
-	retn    12 
+	call    eax
+	xor     eax, eax
+	retn    12
 	*/
-
 	size_t dwFuncLength = sizeof(ASMInstruction) * 2 + sizeof(INT) + 3;
 	PVOID pAllocated = VirtualAlloc(0, dwFuncLength, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 	*(ASMInstruction*)pAllocated = { 0x68, (UINT_PTR)pAttachment };
@@ -150,10 +136,9 @@ PVOID CBrightnessNotify::GetProcedureForApply() {
 	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + sizeof(INT)) = 0xC2;//retn
 	*(INT*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + sizeof(INT) + 1) = 0xC;//12
 	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + sizeof(INT) + 3) = 0xCC;//int 3
-
-	//x32 only
- 	return pAllocated;
+	return pAllocated;
 }
+#endif
 void CBrightnessNotify::SetRegistrationHandle(HPOWERNOTIFY hPowerNotify) {
 	pRegHandle = hPowerNotify;
 }
