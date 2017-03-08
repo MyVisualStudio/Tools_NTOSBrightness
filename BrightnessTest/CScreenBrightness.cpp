@@ -100,6 +100,7 @@ void CBrightnessNotify::SetNotifyProcedure(CNotifyProcedure pfn) {
 CNotifyProcedure CBrightnessNotify::GetNotifyProcedure() {
 	return lpfnNotifier;
 }
+/*
 DWORD WINAPI PureProcedureTemplate(PVOID,PVOID,PVOID) {
 	ULONG_PTR pContext = 666666;
 	CNotifyProcedure pDestination = (CNotifyProcedure)233333;
@@ -118,7 +119,41 @@ PVOID CBrightnessNotify::GetProcedureForApply() {
 	ReplacePatternInTemplate(pAllocatedCodeStore, dwTotalLen, 666666, (ULONG_PTR)pAttachment);
 	return pAllocatedCodeStore;
 }
+*/
+#pragma pack(push, 1)
+struct ASMInstruction {
+	UINT8 uInstruction;
+	UINT_PTR uParameter;
+};
+#pragma pack(pop)
+PVOID CBrightnessNotify::GetProcedureForApply() {
+	/*
+	ASM Code like this:
+	push    [Context]
+	mov     eax, [NotifyProcedure]
+	call    eax 
+	xor     eax, eax 
+	retn    12 
+	*/
 
+	size_t dwFuncLength = sizeof(ASMInstruction) * 2 + sizeof(INT) + 3;
+	PVOID pAllocated = VirtualAlloc(0, dwFuncLength, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	*(ASMInstruction*)pAllocated = { 0x68, (UINT_PTR)pAttachment };
+	//push pAttachment
+	*(ASMInstruction*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction)) = { 0xB8,(UINT_PTR)lpfnNotifier };
+	//mov eax,lpfnNotifier
+	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2) = 0xFF;//call
+	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + 1) = 0xD0;//eax
+	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + 2) = 0x31;//xor
+	*(INT*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + 3) = 0xC0;//eax,eax
+
+	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + sizeof(INT)) = 0xC2;//retn
+	*(INT*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + sizeof(INT) + 1) = 0xC;//12
+	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + sizeof(INT) + 3) = 0xCC;//int 3
+
+	//x32 only
+ 	return pAllocated;
+}
 void CBrightnessNotify::SetRegistrationHandle(HPOWERNOTIFY hPowerNotify) {
 	pRegHandle = hPowerNotify;
 }
@@ -140,10 +175,8 @@ HRESULT CScreenBrightness::Write(DWORD dwValue) {
 
 HRESULT CScreenBrightness::Write(DWORD dwValue, CSystemPowerPlan * refSysPowerPlan)
 {
-	refSysPowerPlan->WriteValueIndex(&GUID_VIDEO_SUBGROUP,
-		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, dwValue);
-
-	return E_NOTIMPL;
+	return (refSysPowerPlan->WriteValueIndex(&GUID_VIDEO_SUBGROUP,
+		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, dwValue) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
 
 HRESULT CScreenBrightness::SetNotify(CBrightnessNotify * refNotify, BOOL bEnabled)
