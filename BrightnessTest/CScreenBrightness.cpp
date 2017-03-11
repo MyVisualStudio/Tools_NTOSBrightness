@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "CScreenBrightness.h"
 
 #define With_CSystemPowerPlan_CheckParam(RoutineName,Parameter) \
