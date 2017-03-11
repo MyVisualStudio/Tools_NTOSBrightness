@@ -19,10 +19,9 @@ DWORD WINAPI PowerApplySettingChanges(
 {
 	typedef DWORD(WINAPI *pfnPowerApplySettingChanges)(
 		const GUID& SubGroupOfPowerSettingsGuid, const GUID& PowerSettingGuid);
-	pfnPowerApplySettingChanges pfnTarget;
-	pfnTarget = (pfnPowerApplySettingChanges)GetProcAddress(
-		GetModuleHandleW(L"PowrProf.dll"), "PowerApplySettingChanges");
-	return pfnTarget(SubGroupOfPowerSettingsGuid, PowerSettingGuid);
+	return ((pfnPowerApplySettingChanges)GetProcAddress(
+		GetModuleHandleW(L"PowrProf.dll"), "PowerApplySettingChanges"))
+		(SubGroupOfPowerSettingsGuid, PowerSettingGuid);
 }
 DWORD CSystemPowerPlan::WriteValueIndex(CONST GUID * SubGroupOfPowerSettingsGuid, 
 	CONST GUID * PowerSettingGuid, DWORD AcValueIndex)
@@ -37,9 +36,9 @@ DWORD CSystemPowerPlan::WriteValueIndex(CONST GUID * SubGroupOfPowerSettingsGuid
 
 POWER_TYPE GetCurrentPowerType()
 {
-	SYSTEM_POWER_STATUS pSysPower;
-	if (GetSystemPowerStatus(&pSysPower))
-		return pSysPower.ACLineStatus == 1 ? AC_MODE : DC_MODE;
+	SYSTEM_POWER_STATUS stSysPower;
+	if (GetSystemPowerStatus(&stSysPower))
+		return stSysPower.ACLineStatus == 1 ? AC_MODE : DC_MODE;
 	return POWER_TYPE_NULL;
 }
 
@@ -51,8 +50,10 @@ CSystemPowerPlan* CSystemPowerPlan::GetCurrent()
 CSystemPowerPlan * CSystemPowerPlan::GetByPowerType(POWER_TYPE nType)
 {
 	CSystemPowerPlan* pResult = new CSystemPowerPlan();
-	if (!SUCCEEDED(pResult->Initialize(nType)))
+	if (!SUCCEEDED(pResult->Initialize(nType))) {
+		delete pResult;
 		return 0;
+	}
 	return pResult;
 }
 
