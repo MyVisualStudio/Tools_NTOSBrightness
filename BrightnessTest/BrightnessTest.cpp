@@ -13,7 +13,7 @@ int main()
 	CScreenBrightness::Read(&dwDimBrightness, CSystemPowerPlan::GetCurrent(), DIM_BRIGHTNESS);
 	std::cout << "Current Dim Brightness is: [" << dwDimBrightness << "] " << std::endl;
 	CScreenBrightness::Write((dwBrightness += 20, dwBrightness));
-	std::cout << "Increased by 20." << std::endl << "Current Brightness is: [" << dwBrightness << "] " << std::endl;
+	std::cout << "Increased by 20." << std::endl << "Last Brightness is: [" << dwBrightness << "] " << std::endl;
 	CScreenBrightness::Write(50, CSystemPowerPlan::GetCurrent(), DIM_BRIGHTNESS);
 	CScreenBrightness::GetAdaptiveStatus(&bAdapt_Status);
 	CScreenBrightness::SetAdaptiveStatus(!bAdapt_Status);
