@@ -9,8 +9,8 @@ int main()
 	DWORD dwBrightness;
 	CScreenBrightness::Read(&dwBrightness);
 	std::cout << "Current Brightness is: [" << dwBrightness << "] " << std::endl;
-	CScreenBrightness::Write((dwBrightness += 5, dwBrightness));
-	std::cout << "Increased by 5." << std::endl << "Current Brightness is: [" << dwBrightness << "] " << std::endl;
+	CScreenBrightness::Write((dwBrightness += 20, dwBrightness));
+	std::cout << "Increased by 20." << std::endl << "Current Brightness is: [" << dwBrightness << "] " << std::endl;
 	system("pause");
 	CBrightnessNotify* pNotify = new CBrightnessNotify([](PVOID p) {
 		std::cout << (ULONG_PTR)p << std::endl;

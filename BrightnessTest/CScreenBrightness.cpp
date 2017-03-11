@@ -17,8 +17,6 @@ DWORD CSystemPowerPlan::ReadValueIndex(CONST GUID * SubGroupOfPowerSettingsGuid,
 DWORD WINAPI PowerApplySettingChanges(
 	const GUID& SubGroupOfPowerSettingsGuid, const GUID& PowerSettingGuid)
 {
-	typedef DWORD(WINAPI *pfnPowerApplySettingChanges)(
-		const GUID& SubGroupOfPowerSettingsGuid, const GUID& PowerSettingGuid);
 	return ((pfnPowerApplySettingChanges)GetProcAddress(
 		GetModuleHandleW(L"PowrProf.dll"), "PowerApplySettingChanges"))
 		(SubGroupOfPowerSettingsGuid, PowerSettingGuid);
@@ -42,8 +40,7 @@ POWER_TYPE GetCurrentPowerType()
 	return POWER_TYPE_NULL;
 }
 
-CSystemPowerPlan* CSystemPowerPlan::GetCurrent()
-{
+CSystemPowerPlan* CSystemPowerPlan::GetCurrent() {
 	return GetByPowerType(GetCurrentPowerType());
 }
 
@@ -148,7 +145,11 @@ HPOWERNOTIFY CBrightnessNotify::GetRegistrationHandle() {
 }
 
 HRESULT CScreenBrightness::Read(LPDWORD pResult) {
-	return Read(pResult, CSystemPowerPlan::GetCurrent());
+	CSystemPowerPlan* pPowerPlan = CSystemPowerPlan::GetCurrent();
+	if (!pPowerPlan) throw new std::exception("Unsupported Platform");
+	HRESULT hResult = Read(pResult, pPowerPlan);
+	delete pPowerPlan;
+	return hResult;
 }
 HRESULT CScreenBrightness::Read(LPDWORD pResult, CSystemPowerPlan * refSysPowerPlan)
 {
@@ -156,7 +157,11 @@ HRESULT CScreenBrightness::Read(LPDWORD pResult, CSystemPowerPlan * refSysPowerP
 		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, pResult) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
 HRESULT CScreenBrightness::Write(DWORD dwValue) {
-	return Write(dwValue,CSystemPowerPlan::GetCurrent());
+	CSystemPowerPlan* pPowerPlan = CSystemPowerPlan::GetCurrent();
+	if (!pPowerPlan) throw new std::exception("Unsupported Platform");
+	HRESULT hResult = Write(dwValue, pPowerPlan);
+	delete pPowerPlan;
+	return hResult;
 }
 
 HRESULT CScreenBrightness::Write(DWORD dwValue, CSystemPowerPlan * refSysPowerPlan)

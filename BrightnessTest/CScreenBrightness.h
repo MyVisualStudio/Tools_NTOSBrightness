@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <PowrProf.h>
+#include <exception>
 #pragma comment(lib,"PowrProf.lib")
 
 #ifndef _SCREEN_BRIGHTNESS_CTL
@@ -66,4 +67,8 @@ public:
 	static HRESULT SetNotify(CBrightnessNotify* refNotify, BOOL bEnabled);
 	static HRESULT GetNotify(CBrightnessNotify** refNotifyOut, LPBOOL lpblEnabled);
 };
+
+typedef DWORD(WINAPI *pfnPowerApplySettingChanges)(
+	const GUID& SubGroupOfPowerSettingsGuid, const GUID& PowerSettingGuid);
+
 #endif
