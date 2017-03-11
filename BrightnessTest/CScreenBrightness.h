@@ -24,9 +24,9 @@ private:
 };
 enum POWER_TYPE
 {
-	POWER_TYPE_NULL,
-	AC_MODE,
-	DC_MODE
+	POWER_TYPE_NULL = 255,
+	AC_MODE = 1,
+	DC_MODE = 0
 };
 typedef DWORD (WINAPI *pfnControllerRead)(_In_opt_ HKEY RootPowerKey,
 	_In_ CONST GUID * SchemeGuid,
@@ -58,14 +58,29 @@ private:
 	GUID* pSchemeGuid;
 };
 
+enum BRIGHTNESS_STATE {
+	NORMAL_BRIGHTNESS,
+	DIM_BRIGHTNESS
+};
+
 class CScreenBrightness {
 public:
 	static HRESULT Read(_Out_ LPDWORD pResult);
 	static HRESULT Read(_Out_ LPDWORD pResult, _In_ CSystemPowerPlan* refSysPowerPlan);
+	static HRESULT Read(_Out_ LPDWORD pResult, _In_ CSystemPowerPlan* refSysPowerPlan, BRIGHTNESS_STATE dwState);
+
 	static HRESULT Write(_In_ DWORD dwValue);
 	static HRESULT Write(_In_ DWORD dwValue, _In_ CSystemPowerPlan* refSysPowerPlan);
+	static HRESULT Write(_In_ DWORD dwValue, _In_ CSystemPowerPlan* refSysPowerPlan, BRIGHTNESS_STATE dwState);
+
 	static HRESULT SetNotify(CBrightnessNotify* refNotify, BOOL bEnabled);
 	static HRESULT GetNotify(CBrightnessNotify** refNotifyOut, LPBOOL lpblEnabled);
+
+	static HRESULT SetAdaptiveStatus(BOOL blEnable);
+	static HRESULT SetAdaptiveStatus(BOOL blEnable, _In_ CSystemPowerPlan* refSysPowerPlan);
+
+	static HRESULT GetAdaptiveStatus(LPBOOL lpblEnable);
+	static HRESULT GetAdaptiveStatus(LPBOOL lpblEnable, _In_ CSystemPowerPlan* refSysPowerPlan);
 };
 
 typedef DWORD(WINAPI *pfnPowerApplySettingChanges)(

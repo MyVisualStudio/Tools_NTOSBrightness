@@ -1,6 +1,13 @@
 #include "stdafx.h"
 #include "CScreenBrightness.h"
 
+#define With_CSystemPowerPlan_CheckParam(RoutineName,Parameter) \
+CSystemPowerPlan* pPowerPlan = CSystemPowerPlan::GetCurrent(); \
+if (!pPowerPlan) throw new std::exception("Unsupported Platform"); \
+HRESULT hResult = RoutineName((Parameter), pPowerPlan);\
+delete pPowerPlan; \
+return hResult;
+
 CBrightnessNotify* pNotifyInst;
 BOOL _bEnabled;
 
@@ -36,7 +43,7 @@ POWER_TYPE GetCurrentPowerType()
 {
 	SYSTEM_POWER_STATUS stSysPower;
 	if (GetSystemPowerStatus(&stSysPower))
-		return stSysPower.ACLineStatus == 1 ? AC_MODE : DC_MODE;
+		return (POWER_TYPE)stSysPower.ACLineStatus;
 	return POWER_TYPE_NULL;
 }
 
@@ -144,30 +151,58 @@ HPOWERNOTIFY CBrightnessNotify::GetRegistrationHandle() {
 	return pRegHandle;
 }
 
+
 HRESULT CScreenBrightness::Read(LPDWORD pResult) {
-	CSystemPowerPlan* pPowerPlan = CSystemPowerPlan::GetCurrent();
-	if (!pPowerPlan) throw new std::exception("Unsupported Platform");
-	HRESULT hResult = Read(pResult, pPowerPlan);
-	delete pPowerPlan;
-	return hResult;
+	With_CSystemPowerPlan_CheckParam(Read, pResult);
 }
-HRESULT CScreenBrightness::Read(LPDWORD pResult, CSystemPowerPlan * refSysPowerPlan)
+HRESULT CScreenBrightness::Read(LPDWORD pResult, CSystemPowerPlan * refSysPowerPlan) {
+	return Read(pResult, refSysPowerPlan, NORMAL_BRIGHTNESS);
+}
+HRESULT CScreenBrightness::Read(LPDWORD pResult, CSystemPowerPlan * refSysPowerPlan, BRIGHTNESS_STATE dwState)
 {
-	return (refSysPowerPlan->ReadValueIndex(&GUID_VIDEO_SUBGROUP, 
-		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, pResult) == ERROR_SUCCESS) ? S_OK : E_FAIL;
+	const GUID* pGUIDSetting;
+	switch (dwState)
+	{
+	case NORMAL_BRIGHTNESS: {
+		pGUIDSetting = &GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS;
+		break;
+	}
+	case DIM_BRIGHTNESS: {
+		pGUIDSetting = &GUID_DEVICE_POWER_POLICY_VIDEO_DIM_BRIGHTNESS;
+		break;
+	}
+	default:
+		return E_FAIL;
+	}
+	return (refSysPowerPlan->ReadValueIndex(
+		&GUID_VIDEO_SUBGROUP, pGUIDSetting, pResult) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
 HRESULT CScreenBrightness::Write(DWORD dwValue) {
-	CSystemPowerPlan* pPowerPlan = CSystemPowerPlan::GetCurrent();
-	if (!pPowerPlan) throw new std::exception("Unsupported Platform");
-	HRESULT hResult = Write(dwValue, pPowerPlan);
-	delete pPowerPlan;
-	return hResult;
+	With_CSystemPowerPlan_CheckParam(Write, dwValue);
 }
 
-HRESULT CScreenBrightness::Write(DWORD dwValue, CSystemPowerPlan * refSysPowerPlan)
+HRESULT CScreenBrightness::Write(DWORD dwValue, CSystemPowerPlan * refSysPowerPlan) {
+	return Write(dwValue, refSysPowerPlan, NORMAL_BRIGHTNESS);
+}
+
+HRESULT CScreenBrightness::Write(DWORD dwValue, CSystemPowerPlan * refSysPowerPlan, BRIGHTNESS_STATE dwState)
 {
-	return (refSysPowerPlan->WriteValueIndex(&GUID_VIDEO_SUBGROUP,
-		&GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS, dwValue) == ERROR_SUCCESS) ? S_OK : E_FAIL;
+	const GUID* pGUIDSetting;
+	switch (dwState)
+	{
+	case NORMAL_BRIGHTNESS: {
+		pGUIDSetting = &GUID_DEVICE_POWER_POLICY_VIDEO_BRIGHTNESS;
+		break;
+	}
+	case DIM_BRIGHTNESS: {
+		pGUIDSetting = &GUID_DEVICE_POWER_POLICY_VIDEO_DIM_BRIGHTNESS;
+		break;
+	}
+	default:
+		return E_FAIL;
+	}
+	return (refSysPowerPlan->WriteValueIndex(
+		&GUID_VIDEO_SUBGROUP, pGUIDSetting, dwValue) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
 
 HRESULT CScreenBrightness::SetNotify(CBrightnessNotify * refNotify, BOOL bEnabled)
@@ -191,9 +226,27 @@ HRESULT CScreenBrightness::SetNotify(CBrightnessNotify * refNotify, BOOL bEnable
 	return S_OK;
 }
 
-HRESULT CScreenBrightness::GetNotify(CBrightnessNotify ** refNotifyOut, LPBOOL lpblEnabled)
-{
+HRESULT CScreenBrightness::GetNotify(CBrightnessNotify ** refNotifyOut, LPBOOL lpblEnabled) {
 	*refNotifyOut = pNotifyInst;
 	*lpblEnabled = _bEnabled;
 	return S_OK;
+}
+
+HRESULT CScreenBrightness::SetAdaptiveStatus(BOOL blEnable) {
+	With_CSystemPowerPlan_CheckParam(SetAdaptiveStatus, blEnable);
+}
+
+HRESULT CScreenBrightness::SetAdaptiveStatus(BOOL blEnable, CSystemPowerPlan * refSysPowerPlan) {
+	return (refSysPowerPlan->WriteValueIndex(
+		&GUID_VIDEO_SUBGROUP, &GUID_VIDEO_ADAPTIVE_DISPLAY_BRIGHTNESS, blEnable) == ERROR_SUCCESS) ? S_OK : E_FAIL;
+}
+
+HRESULT CScreenBrightness::GetAdaptiveStatus(LPBOOL lpblEnable) {
+	With_CSystemPowerPlan_CheckParam(GetAdaptiveStatus, lpblEnable);
+}
+
+HRESULT CScreenBrightness::GetAdaptiveStatus(LPBOOL lpblEnable, CSystemPowerPlan * refSysPowerPlan) {
+	return (refSysPowerPlan->ReadValueIndex(
+		&GUID_VIDEO_SUBGROUP, &GUID_VIDEO_ADAPTIVE_DISPLAY_BRIGHTNESS, 
+		(LPDWORD)lpblEnable) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
