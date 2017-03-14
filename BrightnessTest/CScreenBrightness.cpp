@@ -7,8 +7,13 @@ HRESULT hResult = RoutineName((Parameter), pPowerPlan);\
 delete pPowerPlan; \
 return hResult;
 
-CBrightnessNotify* pNotifyInst;
+/*
+CBNotificationReceiver* pNotificationReceiverInst;
 BOOL _bEnabled;
+*/
+
+std::vector<CBNotificationReceiverWithStatus> vectNotificationReceiver;
+std::map<CBNotificationReceiver*, size_t>  mapStatusLocation;
 
 POWER_TYPE CSystemPowerPlan::GetType() {
 	return nPowerType;
@@ -83,31 +88,46 @@ HRESULT CSystemPowerPlan::Initialize(POWER_TYPE nType)
 	return (PowerGetActiveScheme(0, &pSchemeGuid) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
 
-CBrightnessNotify::CBrightnessNotify(CNotifyProcedure pfnInitial, PVOID pAttachment)
+CBNotificationReceiver::CBNotificationReceiver(CNotificationReceiverProcedure pfnInitial, PVOID pAttachment)
 {
-	SetNotifyProcedure(pfnInitial);
+	SetNotificationReceiverProcedure(pfnInitial);
 	SetAttachment(pAttachment);
 }
 
-CBrightnessNotify::CBrightnessNotify(CNotifyProcedure pfnInitial) {
-	CBrightnessNotify(pfnInitial, 0);
+CBNotificationReceiver::CBNotificationReceiver(CNotificationReceiverProcedure pfnInitial) {
+	CBNotificationReceiver(pfnInitial, 0);
 }
-void CBrightnessNotify::SetAttachment(PVOID pAttachment) {
+void CBNotificationReceiver::SetAttachment(PVOID pAttachment) {
 	this->pAttachment = pAttachment;
 }
-PVOID CBrightnessNotify::GetAttachment() {
+PVOID CBNotificationReceiver::GetAttachment() {
 	return pAttachment;
 }
-void CBrightnessNotify::SetNotifyProcedure(CNotifyProcedure pfn) {
-	lpfnNotifier = pfn;
+void CBNotificationReceiver::SetNotificationReceiverProcedure(CNotificationReceiverProcedure pfn) {
+	lpfnNotificationReceiver = pfn;
 }
-CNotifyProcedure CBrightnessNotify::GetNotifyProcedure() {
-	return lpfnNotifier;
+CNotificationReceiverProcedure CBNotificationReceiver::GetNotificationReceiverProcedure() {
+	return lpfnNotificationReceiver;
 }
 
 #if defined(_M_X64) || defined(__x86_64__)
-PVOID CBrightnessNotify::GetProcedureForApply() {
-
+PVOID CBNotificationReceiver::GetProcedureForApply() {
+	size_t dwFuncLength = 10000;
+	PVOID pAllocated = VirtualAlloc(0, dwFuncLength, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	/*
+	Because of x64-platform CppCompiler's policy(stdcall CONVERT TO cdecl)
+	sub     rsp, 28h
+	mov     rcx, 18D5D42AAh
+	mov     rax, 56EC66955h
+	call    rax
+	xor     eax, eax
+	add     rsp, 28h
+	retn
+	48 83  EC 28 48 B9 AA 42 5D 8D 01 00 00 00 48 
+	B8 55 69  C6 6E 05 00 00 00 FF D0 33 C0 48 83 
+	C4 28 C3
+    */
+	
 }
 #else
 //32Bit Details
@@ -117,11 +137,11 @@ struct ASMInstruction {
 	UINT_PTR uParameter;
 };
 #pragma pack(pop)
-PVOID CBrightnessNotify::GetProcedureForApply() {
+PVOID CBNotificationReceiver::GetProcedureForApply() {
 	/*
 	ASM Code like this:
 	push    [Context]
-	mov     eax, [NotifyProcedure]
+	mov     eax, [NotificationReceiverProcedure]
 	call    eax
 	xor     eax, eax
 	retn    12
@@ -130,8 +150,8 @@ PVOID CBrightnessNotify::GetProcedureForApply() {
 	PVOID pAllocated = VirtualAlloc(0, dwFuncLength, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 	*(ASMInstruction*)pAllocated = { 0x68, (UINT_PTR)pAttachment };
 	//push pAttachment
-	*(ASMInstruction*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction)) = { 0xB8,(UINT_PTR)lpfnNotifier };
-	//mov eax,lpfnNotifier
+	*(ASMInstruction*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction)) = { 0xB8,(UINT_PTR)lpfnNotificationReceiver };
+	//mov eax,lpfnNotificationReceiver
 	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2) = 0xFF;//call
 	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + 1) = 0xD0;//eax
 	*(CHAR*)((ULONG_PTR)pAllocated + sizeof(ASMInstruction) * 2 + 2) = 0x31;//xor
@@ -143,10 +163,10 @@ PVOID CBrightnessNotify::GetProcedureForApply() {
 	return pAllocated;
 }
 #endif
-void CBrightnessNotify::SetRegistrationHandle(HPOWERNOTIFY hPowerNotify) {
-	pRegHandle = hPowerNotify;
+void CBNotificationReceiver::SetRegistrationHandle(HPOWERNOTIFY hPowerNotificationReceiver) {
+	pRegHandle = hPowerNotificationReceiver;
 }
-HPOWERNOTIFY CBrightnessNotify::GetRegistrationHandle() {
+HPOWERNOTIFY CBNotificationReceiver::GetRegistrationHandle() {
 	return pRegHandle;
 }
 
@@ -204,11 +224,19 @@ HRESULT CScreenBrightness::Write(DWORD dwValue, CSystemPowerPlan * refSysPowerPl
 		&GUID_VIDEO_SUBGROUP, pGUIDSetting, dwValue) == ERROR_SUCCESS) ? S_OK : E_FAIL;
 }
 
-HRESULT CScreenBrightness::SetNotify(CBrightnessNotify * refNotify, BOOL bEnabled)
+HRESULT CScreenBrightness::SetNotificationReceiver(CBNotificationReceiver * refNotificationReceiver, BOOL bEnabled)
 {
-	HANDLE hRecipient = refNotify->GetProcedureForApply();
-	pNotifyInst = refNotify;
-	_bEnabled = bEnabled;
+	HANDLE hRecipient = refNotificationReceiver->GetProcedureForApply();
+	CBNotificationReceiverWithStatus objStatus = { refNotificationReceiver ,bEnabled };
+	//pNotificationReceiverInst = refNotificationReceiver;
+	//_bEnabled = bEnabled;
+	if (mapStatusLocation[refNotificationReceiver] == 0) {
+		vectNotificationReceiver.push_back(objStatus);
+		mapStatusLocation[refNotificationReceiver] = vectNotificationReceiver.size();
+	}
+	else 
+		vectNotificationReceiver[mapStatusLocation[refNotificationReceiver] - 1].bEnabled = bEnabled;
+
 	if (bEnabled) {
 		HANDLE hRegistrationHandle;
 		HRESULT hReturn = (PowerSettingRegisterNotification(
@@ -216,18 +244,18 @@ HRESULT CScreenBrightness::SetNotify(CBrightnessNotify * refNotify, BOOL bEnable
 			DEVICE_NOTIFY_CALLBACK,
 			&hRecipient,
 			&hRegistrationHandle) == ERROR_SUCCESS) ? S_OK : E_FAIL;
-		refNotify->SetRegistrationHandle(hRegistrationHandle);
+		refNotificationReceiver->SetRegistrationHandle(hRegistrationHandle);
 		return hReturn;
 	}
-	if (PowerSettingUnregisterNotification(refNotify->GetRegistrationHandle()) != ERROR_SUCCESS)
+	if (PowerSettingUnregisterNotification(refNotificationReceiver->GetRegistrationHandle()) != ERROR_SUCCESS)
 		return E_FAIL;
-	refNotify->SetRegistrationHandle(0);
+	refNotificationReceiver->SetRegistrationHandle(0);
 	return S_OK;
 }
 
-HRESULT CScreenBrightness::GetNotify(CBrightnessNotify ** refNotifyOut, LPBOOL lpblEnabled) {
-	*refNotifyOut = pNotifyInst;
-	*lpblEnabled = _bEnabled;
+HRESULT CScreenBrightness::GetNotificationReceiver(CBNotificationReceiverWithStatus** pObjColl, LPDWORD lpdwLength) {
+	*pObjColl = CreateArrayFromStdVector(vectNotificationReceiver);
+	*lpdwLength = vectNotificationReceiver.size();
 	return S_OK;
 }
 

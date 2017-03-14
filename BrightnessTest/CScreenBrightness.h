@@ -1,25 +1,27 @@
 #include <Windows.h>
 #include <PowrProf.h>
 #include <exception>
+#include <vector>
+#include <map>
 #pragma comment(lib,"PowrProf.lib")
 
 #ifndef _SCREEN_BRIGHTNESS_CTL
 #define _SCREEN_BRIGHTNESS_CTL
-typedef void (WINAPI *CNotifyProcedure)(PVOID pAttachment);
-class CBrightnessNotify {
+typedef void (WINAPI *CNotificationReceiverProcedure)(PVOID pAttachment);
+class CBNotificationReceiver {
 public:
-	CBrightnessNotify(CNotifyProcedure pfnInitial, PVOID pAttachment);
-	CBrightnessNotify(CNotifyProcedure pfnInitial);
+	CBNotificationReceiver(CNotificationReceiverProcedure pfnInitial, PVOID pAttachment);
+	CBNotificationReceiver(CNotificationReceiverProcedure pfnInitial);
 	void SetAttachment(PVOID pAttachment);
 	PVOID GetAttachment();
-	void SetNotifyProcedure(CNotifyProcedure pfn);
-	CNotifyProcedure GetNotifyProcedure();
+	void SetNotificationReceiverProcedure(CNotificationReceiverProcedure pfn);
+	CNotificationReceiverProcedure GetNotificationReceiverProcedure();
 	PVOID GetProcedureForApply();
-	void SetRegistrationHandle(HPOWERNOTIFY hPowerNotify);
+	void SetRegistrationHandle(HPOWERNOTIFY hPowerNotificationReceiver);
 	HPOWERNOTIFY GetRegistrationHandle();
 private:
-	CBrightnessNotify();
-	CNotifyProcedure lpfnNotifier = 0;
+	CBNotificationReceiver();
+	CNotificationReceiverProcedure lpfnNotificationReceiver = 0;
 	PVOID pAttachment = 0, pRegHandle = 0;
 };
 enum POWER_TYPE
@@ -63,6 +65,21 @@ enum BRIGHTNESS_STATE {
 	DIM_BRIGHTNESS
 };
 
+template <class T>
+inline T* CreateArrayFromStdVector(std::vector<T>& vectObj) {
+	size_t vectSize = vectObj.size();
+	T* pInstance = new T[vectSize];
+	for (size_t i = 0; i < vectSize; i++)
+		pInstance[i] = vectObj[i];
+	return pInstance;
+}
+
+struct CBNotificationReceiverWithStatus {
+	CBNotificationReceiver* pObj;
+	BOOL bEnabled;
+};
+
+
 class CScreenBrightness {
 public:
 	static HRESULT Read(_Out_ LPDWORD pResult);
@@ -73,8 +90,8 @@ public:
 	static HRESULT Write(_In_ DWORD dwValue, _In_ CSystemPowerPlan* refSysPowerPlan);
 	static HRESULT Write(_In_ DWORD dwValue, _In_ CSystemPowerPlan* refSysPowerPlan, BRIGHTNESS_STATE dwState);
 
-	static HRESULT SetNotify(CBrightnessNotify* refNotify, BOOL bEnabled);
-	static HRESULT GetNotify(CBrightnessNotify** refNotifyOut, LPBOOL lpblEnabled);
+	static HRESULT SetNotificationReceiver(CBNotificationReceiver* refNotificationReceiver, BOOL bEnabled);
+	static HRESULT GetNotificationReceiver(CBNotificationReceiverWithStatus** pObjColl, LPDWORD lpdwLength);
 
 	static HRESULT SetAdaptiveStatus(BOOL blEnable);
 	static HRESULT SetAdaptiveStatus(BOOL blEnable, _In_ CSystemPowerPlan* refSysPowerPlan);
@@ -85,5 +102,6 @@ public:
 
 typedef DWORD(WINAPI *pfnPowerApplySettingChanges)(
 	const GUID& SubGroupOfPowerSettingsGuid, const GUID& PowerSettingGuid);
+
 
 #endif

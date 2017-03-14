@@ -6,8 +6,9 @@
 #include <iostream>
 int main()
 {
-	DWORD dwBrightness, dwDimBrightness;
+	DWORD dwBrightness, dwDimBrightness, dwStatusCount;
 	BOOL bAdapt_Status;
+	CBNotificationReceiverWithStatus* objCs;
 	CScreenBrightness::Read(&dwBrightness);
 	std::cout << "Current Brightness is: [" << dwBrightness << "] " << std::endl;
 	CScreenBrightness::Read(&dwDimBrightness, CSystemPowerPlan::GetCurrent(), DIM_BRIGHTNESS);
@@ -19,11 +20,19 @@ int main()
 	CScreenBrightness::SetAdaptiveStatus(!bAdapt_Status);
 	std::cout << "Current AdaptiveStatus is: [" << bAdapt_Status << "] " << std::endl;
 	system("pause");
-	CBrightnessNotify* pNotify = new CBrightnessNotify([](PVOID p) {
-		std::cout << (ULONG_PTR)p << std::endl;
+	CBNotificationReceiver* pNotificationReceiver = new CBNotificationReceiver([](PVOID p) {
+		std::cout << (char*)p << std::endl;
 		CScreenBrightness::Write(100);
-	}, (PVOID)6666666);
-	CScreenBrightness::SetNotify(pNotify, 1);
+	}, (PVOID)"\n[Event Triggered]");
+	CScreenBrightness::SetNotificationReceiver(pNotificationReceiver, 1);
+	CScreenBrightness::GetNotificationReceiver(&objCs, &dwStatusCount);
+	printf("NotificationReceiver changed successfully : 1\nAdded : %d\n", dwStatusCount);
+	CScreenBrightness::SetNotificationReceiver(
+		new CBNotificationReceiver([](PVOID p) {
+		std::cout << (char*)p << std::endl;
+	}, (PVOID)"\n[New NotificationReceiverFunction Enabled]"), 1);
+	CScreenBrightness::GetNotificationReceiver(&objCs, &dwStatusCount);
+	printf("NotificationReceiver changed successfully : 2\nAdded : %d\n", dwStatusCount);
 	system("pause");
 	return 0;
 }
